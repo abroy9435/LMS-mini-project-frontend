@@ -1,4 +1,11 @@
 import { useUser, useClerk } from "@clerk/clerk-react";
+import { motion } from "framer-motion";
+
+const motionProps = {
+  whileTap: { scale: 0.95 },
+  transition: { type: "spring", stiffness: 400, damping: 25 },
+  className: "cursor-pointer"
+};
 
 export default function Profile() {
   const { user } = useUser();
@@ -24,8 +31,7 @@ export default function Profile() {
           <div className="bg-white border border-outline-variant rounded-xl overflow-hidden shadow-sm flex flex-col">
             
             {/* Banner Background */}
-            <div className="h-24 bg-gradient-to-r from-primary-container to-primary relative">
-              {/* Decorative graphic */}
+            <div className="h-24 bg-gradient-to-r from-primary-container to-primary relative overflow-hidden">
               <span className="material-symbols-outlined absolute -bottom-4 -right-4 text-7xl text-white opacity-20 transform rotate-12">
                 school
               </span>
@@ -52,13 +58,14 @@ export default function Profile() {
                 Active Employee
               </span>
 
-              <button 
+              <motion.button 
+                {...motionProps}
                 onClick={() => openUserProfile()}
-                className="w-full py-2 border border-outline-variant text-on-surface font-bold rounded-lg hover:bg-surface-container-low transition-colors active:scale-95 flex items-center justify-center gap-2"
+                className={`w-full py-2 border border-outline-variant text-on-surface font-bold rounded-lg hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2 ${motionProps.className}`}
               >
                 <span className="material-symbols-outlined text-[18px]">manage_accounts</span>
-                Manage Clerk Security
-              </button>
+                Manage Account
+              </motion.button>
             </div>
           </div>
         </div>

@@ -1,9 +1,19 @@
-import { useSignIn } from "@clerk/clerk-react";
+import { useSignIn, useAuth } from "@clerk/clerk-react";
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+
+const motionProps = {
+  whileTap: { scale: 0.95 },
+  transition: { type: "spring", stiffness: 400, damping: 25 },
+};
 
 export default function Login() {
-  const { isLoaded, signIn } = useSignIn();
+  const { isLoaded, signIn, setActive } = useSignIn();
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
-  // 1. Headless Clerk authentication for Google (Bypasses Clerk's default UI)
+  // 1. Headless Clerk authentication for Google
   const handleGoogleSignIn = (e) => {
     e.preventDefault();
     if (!isLoaded) return;
@@ -15,34 +25,34 @@ export default function Login() {
     });
   };
 
-  // 2. Manual fetch to your Go Backend for Email/Password
+  // 2. Wired Clerk Email/Password Authentication
   const handleEmailSignIn = async (e) => {
     e.preventDefault();
+    if (!isLoaded) return;
     
-    // Grab values using FormData
+    setIsLoading(true);
     const formData = new FormData(e.target);
     const email = formData.get("email");
     const password = formData.get("password");
    
     try {
-      // Sends a POST request to your Go backend
-      const response = await fetch("http://localhost:8080/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      // Use Clerk directly instead of manually hitting the Go backend
+      const result = await signIn.create({
+        identifier: email,
+        password,
       });
-   
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Login successful!", data);
-        alert("Login successful! Check console for token.");
-        // TODO: Store your Go backend JWT token in localStorage/cookies here
+
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        navigate("/"); 
       } else {
-        alert("Invalid credentials. Please check your email and password.");
+        console.log("Investigate additional auth steps:", result);
       }
     } catch (error) {
-      console.error("Login error:", error);
-      alert("Server error. Ensure your Go backend is running on port 8080.");
+      console.error("Login error:", error.errors ? error.errors[0].message : error.message);
+      alert(error.errors ? error.errors[0].message : "Invalid credentials.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -105,14 +115,14 @@ export default function Login() {
             <span className="font-headline-md text-primary font-bold">TU LMS</span>
           </div>
           <div className="flex gap-6 items-center ml-auto text-on-surface-variant">
-            <button className="hover:text-primary transition-colors flex items-center gap-2">
+            <motion.button {...motionProps} className="hover:text-primary transition-colors flex items-center gap-2 cursor-pointer">
               <span className="material-symbols-outlined text-[20px]">language</span>
               <span className="text-[14px] font-medium hidden sm:inline">English</span>
-            </button>
-            <button className="hover:text-primary transition-colors flex items-center gap-2">
+            </motion.button>
+            <motion.button {...motionProps} className="hover:text-primary transition-colors flex items-center gap-2 cursor-pointer">
               <span className="material-symbols-outlined text-[20px]">help</span>
               <span className="text-[14px] font-medium hidden sm:inline">Support</span>
-            </button>
+            </motion.button>
           </div>
         </nav>
 
@@ -124,10 +134,11 @@ export default function Login() {
           </header>
 
           {/* Social Sign In (Headless Clerk) */}
-          <button 
+          <motion.button 
+            {...motionProps}
             type="button"
             onClick={handleGoogleSignIn}
-            className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-outline-variant rounded-xl hover:bg-surface-container-low transition-all duration-200 mb-8 active:scale-[0.98]"
+            className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-outline-variant rounded-xl hover:bg-surface-container-low transition-all duration-200 mb-8 cursor-pointer"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"></path>
@@ -136,7 +147,7 @@ export default function Login() {
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 12-4.53z" fill="#EA4335"></path>
             </svg>
             <span className="text-[15px] font-semibold text-on-surface">Continue with Google</span>
-          </button>
+          </motion.button>
 
           {/* Divider */}
           <div className="flex items-center mb-8">
@@ -161,7 +172,7 @@ export default function Login() {
             <div className="flex flex-col gap-1.5">
               <div className="flex justify-between items-center ml-1">
                 <label className="text-[13px] font-semibold text-on-surface-variant">Password</label>
-                <a href="#" className="text-[12px] font-semibold text-primary hover:underline">Forgot?</a>
+                <motion.a {...motionProps} href="#" className="text-[12px] font-semibold text-primary hover:underline cursor-pointer">Forgot?</motion.a>
               </div>
               <input 
                 name="password"
@@ -177,21 +188,23 @@ export default function Login() {
               <label htmlFor="remember" className="text-[13px] text-on-surface-variant cursor-pointer">Keep me signed in</label>
             </div>
             
-            <button 
-              type="submit" 
-              className="w-full bg-primary text-white py-3 px-6 rounded-xl text-[16px] font-bold hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-md"
+            <motion.button 
+              {...motionProps}
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-primary text-white py-3 px-6 rounded-xl text-[16px] font-bold hover:opacity-90 transition-all duration-200 shadow-md cursor-pointer disabled:opacity-70"
             >
-              Sign In
-            </button>
+              {isLoading ? "Signing In..." : "Sign In"}
+            </motion.button>
           </form>
 
           <footer className="mt-10 pt-6 border-t border-outline-variant/50 text-center">
             <p className="text-[13px] text-on-surface-variant mb-2">
-              Don't have an account? <a href="#" className="text-primary font-semibold hover:underline">Contact Administrator</a>
+              Don't have an account? <motion.a {...motionProps} href="#" className="text-primary font-semibold hover:underline inline-block cursor-pointer">Contact Administrator</motion.a>
             </p>
             <div className="flex justify-center gap-4 mt-4">
-              <a href="#" className="text-outline hover:text-on-surface-variant transition-colors text-[12px]">Privacy Policy</a>
-              <a href="#" className="text-outline hover:text-on-surface-variant transition-colors text-[12px]">Terms of Service</a>
+              <motion.a {...motionProps} href="#" className="text-outline hover:text-on-surface-variant transition-colors text-[12px] inline-block cursor-pointer">Privacy Policy</motion.a>
+              <motion.a {...motionProps} href="#" className="text-outline hover:text-on-surface-variant transition-colors text-[12px] inline-block cursor-pointer">Terms of Service</motion.a>
             </div>
           </footer>
         </div>

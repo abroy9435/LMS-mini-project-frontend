@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useUser } from "@clerk/clerk-react";
+import { motion } from "framer-motion";
 import LogoutModal from "../common/LogoutModal";
+
+const motionProps = {
+  whileTap: { scale: 0.95 },
+  transition: { type: "spring", stiffness: 400, damping: 25 },
+  className: "cursor-pointer"
+};
 
 export default function TopAppBar() {
   const { user } = useUser();
@@ -24,14 +31,18 @@ export default function TopAppBar() {
             />
           </div>
 
-          <button className="w-10 h-10 rounded-full hover:bg-surface-container-high transition-colors active:scale-95 flex items-center justify-center">
+          <motion.button 
+            {...motionProps} 
+            className={`w-10 h-10 rounded-full hover:bg-surface-container-high transition-colors flex items-center justify-center ${motionProps.className}`}
+          >
             <span className="material-symbols-outlined text-on-surface-variant">notifications</span>
-          </button>
+          </motion.button>
           
           {/* Custom Profile/Logout Button */}
-          <button 
+          <motion.button 
+            {...motionProps}
             onClick={() => setIsLogoutModalOpen(true)}
-            className="w-10 h-10 ml-2 rounded-full border-2 border-outline-variant hover:border-primary transition-colors overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className={`w-10 h-10 ml-2 rounded-full border-2 border-outline-variant hover:border-primary transition-colors overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary/50 ${motionProps.className}`}
             title="Sign Out"
           >
             <img 
@@ -39,7 +50,7 @@ export default function TopAppBar() {
               alt="User Avatar" 
               className="w-full h-full object-cover"
             />
-          </button>
+          </motion.button>
         </div>
       </header>
 

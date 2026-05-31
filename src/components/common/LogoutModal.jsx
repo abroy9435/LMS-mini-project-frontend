@@ -1,4 +1,11 @@
 import { useClerk } from "@clerk/clerk-react";
+import { motion } from "framer-motion";
+
+const motionProps = {
+  whileTap: { scale: 0.95 },
+  transition: { type: "spring", stiffness: 400, damping: 25 },
+  className: "cursor-pointer"
+};
 
 export default function LogoutModal({ isOpen, onClose }) {
   const { signOut } = useClerk();
@@ -21,18 +28,20 @@ export default function LogoutModal({ isOpen, onClose }) {
         </p>
 
         <div className="flex items-center justify-end gap-3">
-          <button 
+          <motion.button 
+            {...motionProps}
             onClick={onClose}
-            className="px-5 py-2 font-bold text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-colors"
+            className={`px-5 py-2 font-bold text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-colors ${motionProps.className}`}
           >
             Cancel
-          </button>
-          <button 
+          </motion.button>
+          <motion.button 
+            {...motionProps}
             onClick={() => signOut()}
-            className="px-5 py-2 bg-error text-white font-semibold rounded-xl shadow-sm hover:brightness-120 transition-brightness"
+            className={`px-5 py-2 bg-error text-white font-semibold rounded-xl shadow-sm hover:brightness-120 transition-brightness ${motionProps.className}`}
           >
             Sign Out
-          </button>
+          </motion.button>
         </div>
       </div>
     </div>
