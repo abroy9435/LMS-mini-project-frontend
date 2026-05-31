@@ -4,7 +4,8 @@ import { motion } from "framer-motion";
 const motionProps = {
   whileTap: { scale: 0.95 },
   transition: { type: "spring", stiffness: 400, damping: 25 },
-  className: "cursor-pointer"
+  style: { cursor: "pointer" },
+  whileHover: { scale: 1.02 },
 };
 
 export default function Profile() {

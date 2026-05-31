@@ -13,7 +13,7 @@ export const API_URLS = {
     apply: `${API_BASE_URL}/api/v1/leaves`,
     myLeaves: `${API_BASE_URL}/api/v1/leaves/me`,
     pending: `${API_BASE_URL}/api/v1/leaves/pending`,
-    // Helper function for dynamic URL parameters
+    stats: `${API_BASE_URL}/api/v1/leaves/approver-stats`,
     updateStatus: (leaveId) => `${API_BASE_URL}/api/v1/leaves/${leaveId}/status`,
   },
 
@@ -24,8 +24,15 @@ export const API_URLS = {
 
   // Administrator Routes
   admin: {
-    allocateLeaves: `${API_BASE_URL}/api/v1/admin/allocate-leaves`,
+    departments: `${API_BASE_URL}/api/v1/admin/departments`,
+    roles: `${API_BASE_URL}/api/v1/admin/roles`,
+    leaveTypes: `${API_BASE_URL}/api/v1/admin/leave-types`,
+    users: `${API_BASE_URL}/api/v1/admin/users`,
     assignRole: `${API_BASE_URL}/api/v1/admin/assign-role`,
+    importHolidays: `${API_BASE_URL}/api/v1/admin/holidays/import`,
+    holidays: `${API_BASE_URL}/api/v1/admin/holidays`,
+    allocateLeaves: `${API_BASE_URL}/api/v1/admin/allocate-leaves`,
+    auditLogs: `${API_BASE_URL}/api/v1/admin/audit-logs`,
   }
 };
 
@@ -33,4 +40,11 @@ export const ROLES = {
   EMPLOYEE: 'EMPLOYEE',
   APPROVER: 'APPROVER',
   ADMIN: 'ADMIN',
+};
+
+export const ROLE_IDS = {
+  ADMIN: import.meta.env.VITE_ROLE_ADMIN_ID,
+  REGISTRAR: import.meta.env.VITE_ROLE_REGISTRAR_ID,
+  COE: import.meta.env.VITE_ROLE_COE_ID,
+  HOD: import.meta.env.VITE_ROLE_HOD_ID,
 };

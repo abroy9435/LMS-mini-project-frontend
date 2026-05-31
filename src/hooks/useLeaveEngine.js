@@ -19,6 +19,12 @@ export const useLeaveEngine = () => {
   // Helper to reset error state
   const clearError = useCallback(() => setError(null), []);
 
+  const [approverStats, setApproverStats] = useState({
+    pending_count: 0,
+    approved_today: 0,
+    avg_response_hours: 0
+  });
+
   /**
    * Submit a new leave request
    * @param {Object} leaveData - { leave_type_id, start_date, end_date, reason }
@@ -100,27 +106,33 @@ const fetchMyBalances = useCallback(async () => {
   }
 }, [getToken, clearError]);
 
-  /**
+/**
    * [APPROVER/ADMIN ONLY] Fetch all pending leaves
    */
-  const fetchPendingLeaves = useCallback(async () => {
-    setIsLoading(true);
-    clearError();
-    try {
-      const data = await apiFetch(
-        API_URLS.leave.pending, 
-        { method: 'GET' }, 
-        getToken
-      );
-      setPendingLeaves(data);
-      return data;
-    } catch (err) {
-      setError(err.message);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [getToken]);
+const fetchPendingLeaves = useCallback(async () => {
+  setIsLoading(true);
+  clearError();
+  try {
+    const response = await apiFetch(
+      API_URLS.leave.pending, 
+      { method: 'GET' }, 
+      getToken
+    );
+    
+    // Target the 'data' array based on your Network tab screenshot
+    const pendingArray = response.data || [];
+    
+    // Ensure it's an array before setting state
+    setPendingLeaves(Array.isArray(pendingArray) ? pendingArray : []);
+    
+    return response;
+  } catch (err) {
+    setError(err.message);
+    throw err;
+  } finally {
+    setIsLoading(false);
+  }
+}, [getToken, clearError]);
 
   /**
    * [APPROVER/ADMIN ONLY] Approve or Reject a leave
@@ -128,6 +140,17 @@ const fetchMyBalances = useCallback(async () => {
    * @param {string} status - "APPROVED" or "REJECTED"
    * @param {string} remarks - Optional comments from the approver
    */
+
+  const fetchApproverStats = useCallback(async () => {
+    try {
+      const response = await apiFetch(API_URLS.leave.stats, { method: 'GET' }, getToken);
+      setApproverStats(response.data || response);
+    } catch (err) {
+      console.error("Failed to fetch stats:", err);
+    }
+  }, [getToken]);
+
+
   const updateLeaveStatus = async (leaveId, status, remarks = "") => {
     setIsLoading(true);
     clearError();
@@ -176,6 +199,7 @@ const fetchMyBalances = useCallback(async () => {
     myLeaves,
     leaveBalances,
     pendingLeaves,
+    approverStats,
     
     // Actions
     clearError,
@@ -184,6 +208,7 @@ const fetchMyBalances = useCallback(async () => {
     fetchMyBalances,
     fetchPendingLeaves,
     updateLeaveStatus,
-    fetchLeaveTypes
+    fetchLeaveTypes,
+    fetchApproverStats
   };
 };
