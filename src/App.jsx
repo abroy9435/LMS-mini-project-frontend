@@ -30,23 +30,38 @@ export default function App() {
             <SignedIn>
               <MainLayout>
                 <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/leaves" element={<MyLeaves />} />
+                  
+                  {/* STANDARD EMPLOYEE ROUTES (Intentionally blocking the VC) */}
+                  <Route path="/" element={
+                    <RoleRoute allowedRoles={["EMPLOYEE", "APPROVER", "ADMIN"]}>
+                      <Dashboard />
+                    </RoleRoute>
+                  } />
+                  
+                  <Route path="/leaves" element={
+                    <RoleRoute allowedRoles={["EMPLOYEE", "APPROVER", "ADMIN"]}>
+                      <MyLeaves />
+                    </RoleRoute>
+                  } />
+
+                  {/* UNIVERSAL ROUTE (Everyone gets a profile) */}
                   <Route path="/profile" element={<Profile />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
+
+                  {/* MANAGEMENT ROUTES (Including the VC) */}
                   <Route path="/approvals" element={
-                    <RoleRoute allowedRoles={["APPROVER", "ADMIN"]}>
+                    <RoleRoute allowedRoles={["APPROVER", "ADMIN", "VC"]}>
                       <Approvals />
                     </RoleRoute>
                   } />
-                  <Route 
-                    path="/admin" 
-                    element={
-                      <RoleRoute allowedRoles={["ADMIN"]}>
-                        <AdminDashboard />
-                      </RoleRoute>
-                    } 
-                  />
+                  
+                  <Route path="/admin" element={
+                    <RoleRoute allowedRoles={["ADMIN", "VC"]}>
+                      <AdminDashboard />
+                    </RoleRoute>
+                  } />
+
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                  
                 </Routes>
               </MainLayout>
             </SignedIn>

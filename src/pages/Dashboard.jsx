@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/clerk-react";
-import { motion } from "framer-motion";
+import { useUser, useAuth } from "@clerk/clerk-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getDay } from "date-fns";
 import StatCard from "../components/common/StatCard";
 import LeaveApplicationModal from "../components/forms/LeaveApplicationModal";
@@ -15,9 +15,15 @@ const motionProps = {
 
 export default function Dashboard() {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const { fetchMyBalances, fetchMyLeaves } = useLeaveEngine();
   
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+  
+  // Holiday Modal State
+  const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
+  const [holidays, setHolidays] = useState([]);
+  const [loadingHolidays, setLoadingHolidays] = useState(false);
   
   // Data State
   const [loading, setLoading] = useState(true);
@@ -32,24 +38,28 @@ export default function Dashboard() {
     async function loadDashboardData() {
       try {
         setLoading(true);
-        const [balanceData, leavesData] = await Promise.all([
+        const [balanceRes, leavesRes] = await Promise.all([
           fetchMyBalances(),
           fetchMyLeaves()
         ]);
 
-        // Process Balances (Assuming balanceData is an array of objects)
-        if (balanceData && balanceData.length > 0) {
-          // Find 'Casual' or sum them up depending on your DB structure
+        // CRITICAL FIX: Unwrap the "data" array from the JSON response
+        const balanceData = Array.isArray(balanceRes) ? balanceRes : (balanceRes?.data || []);
+        const leavesData = Array.isArray(leavesRes) ? leavesRes : (leavesRes?.data || []);
+
+        // Process Balances (API uses snake_case: remaining_days)
+        if (balanceData.length > 0) {
           const totalRemaining = balanceData.reduce((acc, curr) => acc + (curr.remaining_days || 0), 0);
           setBalances(totalRemaining);
         }
         
-        if (leavesData && leavesData.length > 0) {
-          const sorted = [...leavesData].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        // Process Leaves (API uses PascalCase: Status, StartDate, AppliedAt)
+        if (leavesData.length > 0) {
+          const sorted = [...leavesData].sort((a, b) => new Date(b.AppliedAt) - new Date(a.AppliedAt));
           setRecentLeaves(sorted.slice(0, 3)); 
 
-          const pendingCount = leavesData.filter(l => l.status === 'PENDING').length;
-          const upcomingCount = leavesData.filter(l => l.status === 'APPROVED' && new Date(l.start_date) > new Date()).length;
+          const pendingCount = leavesData.filter(l => l.Status === 'PENDING').length;
+          const upcomingCount = leavesData.filter(l => l.Status === 'APPROVED' && new Date(l.StartDate) > new Date()).length;
           setStats({ pending: pendingCount, upcoming: upcomingCount });
         }
       } catch (error) {
@@ -61,6 +71,26 @@ export default function Dashboard() {
     
     loadDashboardData();
   }, [fetchMyBalances, fetchMyLeaves]);
+
+  // --- Fetch Holidays ---
+  const handleViewHolidays = async () => {
+    setIsHolidayModalOpen(true);
+    if (holidays.length === 0) {
+      setLoadingHolidays(true);
+      try {
+        const token = await getToken();
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/admin/holidays`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await response.json();
+        setHolidays(data.data || []);
+      } catch (error) {
+        console.error("Failed to load holidays:", error);
+      } finally {
+        setLoadingHolidays(false);
+      }
+    }
+  };
 
   // --- Calendar Logic ---
   const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
@@ -74,7 +104,7 @@ export default function Dashboard() {
   const blanks = Array.from({ length: startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1 }, (_, i) => i);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-24">
       
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -99,8 +129,10 @@ export default function Dashboard() {
 
       {/* Bento Grid Metrics */}
       {loading ? (
-        <div className="h-48 flex items-center justify-center bg-surface-container-low rounded-xl border border-outline-variant animate-pulse">
-            <p className="text-on-surface-variant">Loading balances...</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="h-32 bg-surface-container-low rounded-xl border border-outline-variant animate-pulse"></div>
+          <div className="h-32 bg-surface-container-low rounded-xl border border-outline-variant animate-pulse"></div>
+          <div className="h-32 bg-surface-container-low rounded-xl border border-outline-variant animate-pulse"></div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -135,9 +167,9 @@ export default function Dashboard() {
         <div className="lg:col-span-8 flex flex-col gap-6">
           <div className="flex items-center justify-between">
             <h2 className="font-title-lg text-title-lg text-on-surface">Recent Activities</h2>
-            <motion.button {...motionProps} className="text-primary font-label-md hover:underline cursor-pointer">
+            <button className="text-primary font-label-md hover:underline cursor-pointer">
                 View All
-            </motion.button>
+            </button>
           </div>
           
           <div className="bg-white border border-outline-variant rounded-xl overflow-hidden shadow-sm">
@@ -151,32 +183,32 @@ export default function Dashboard() {
                 recentLeaves.map((leave, index) => (
                   <div key={index} className="p-6 flex items-center gap-6 hover:bg-surface-container-low transition-colors group">
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
-                        leave.status === 'APPROVED' ? 'bg-secondary-container text-on-secondary-container' :
-                        leave.status === 'REJECTED' ? 'bg-error-container text-error' :
-                        'bg-tertiary-fixed text-on-tertiary-fixed'
+                        leave.Status === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                        leave.Status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                        'bg-yellow-100 text-yellow-700'
                     }`}>
                       <span className="material-symbols-outlined">
-                          {leave.status === 'APPROVED' ? 'check_circle' : leave.status === 'REJECTED' ? 'cancel' : 'pending_actions'}
+                          {leave.Status === 'APPROVED' ? 'check_circle' : leave.Status === 'REJECTED' ? 'cancel' : 'pending_actions'}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-body-md text-body-md font-bold truncate">
-                          Leave Request
+                      <h4 className="font-body-md text-body-md font-bold truncate text-on-surface">
+                          {leave.LeaveType?.name || 'Leave Request'}
                       </h4>
                       <p className="text-body-sm text-on-surface-variant truncate">
-                          Requested for {format(new Date(leave.start_date), 'MMM dd')} - {format(new Date(leave.end_date), 'MMM dd')}
+                          Requested for {format(new Date(leave.StartDate), 'MMM dd')} - {format(new Date(leave.EndDate), 'MMM dd, yyyy')}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
                       <span className="block text-label-md font-label-md text-on-surface-variant mb-1">
-                          {format(new Date(leave.created_at), 'MMM dd')}
+                          {format(new Date(leave.AppliedAt), 'MMM dd')}
                       </span>
                       <span className={`px-2 py-1 text-[10px] font-bold rounded-full uppercase tracking-wider ${
-                          leave.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
-                          leave.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-100 text-yellow-700'
+                          leave.Status === 'APPROVED' ? 'bg-green-100 text-green-700 border border-green-200' :
+                          leave.Status === 'REJECTED' ? 'bg-red-100 text-red-700 border border-red-200' :
+                          'bg-yellow-100 text-yellow-700 border border-yellow-200'
                       }`}>
-                          {leave.status}
+                          {leave.Status}
                       </span>
                     </div>
                   </div>
@@ -224,19 +256,96 @@ export default function Dashboard() {
           {/* Upcoming Holidays Card */}
           <div className="bg-primary-container text-on-primary-container p-6 rounded-xl shadow-sm relative overflow-hidden group">
             <div className="relative z-10">
-              <h3 className="font-title-lg text-title-lg mb-2 text-on-primary-container">University Break</h3>
-              <p className="text-body-sm opacity-80 mb-6 text-on-primary-container">The campus will be closed for the winter holidays starting Dec 24.</p>
-              <motion.button {...motionProps} className="bg-white/20 text-on-primary-container hover:bg-white/30 px-4 py-2 rounded-lg font-bold text-label-md transition-colors cursor-pointer">
-                  View Holiday Calendar
+              <h3 className="font-title-lg text-title-lg mb-2 text-on-primary-container">Institutional Calendar</h3>
+              <p className="text-body-sm opacity-80 mb-6 text-on-primary-container">Review all scheduled national and restricted holidays for the current academic year.</p>
+              <motion.button 
+                {...motionProps} 
+                onClick={handleViewHolidays}
+                className="bg-white/20 text-on-primary-container hover:bg-white/30 px-4 py-2 rounded-lg font-bold text-label-md transition-colors cursor-pointer flex items-center justify-center gap-2 w-full"
+              >
+                  <span className="material-symbols-outlined text-sm">calendar_view_month</span> View All Holidays
               </motion.button>
             </div>
-            <span className="material-symbols-outlined absolute -bottom-4 -right-4 text-9xl opacity-10 group-hover:rotate-12 transition-transform">ac_unit</span>
+            <span className="material-symbols-outlined absolute -bottom-4 -right-4 text-9xl opacity-10 group-hover:rotate-12 transition-transform">park</span>
           </div>
           
         </div>
       </div>
       
       <LeaveApplicationModal isOpen={isLeaveModalOpen} onClose={() => setIsLeaveModalOpen(false)} />
+
+      {/* --- HOLIDAY READ-ONLY MODAL --- */}
+      <AnimatePresence>
+        {isHolidayModalOpen && (
+          <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.95, opacity: 0, y: 20 }} 
+              className="bg-white rounded-3xl w-full max-w-3xl p-6 shadow-2xl relative flex flex-col max-h-[85vh]"
+            >
+              <div className="flex justify-between items-center mb-6 border-b border-outline-variant pb-4 shrink-0">
+                <h2 className="text-title-lg font-bold text-on-surface flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary">calendar_month</span> 
+                  Institutional Holiday Calendar
+                </h2>
+                <button 
+                  onClick={() => setIsHolidayModalOpen(false)} 
+                  className="p-2 rounded-full hover:bg-surface-container-low text-on-surface-variant hover:text-error transition-colors"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 pr-2 custom-scrollbar">
+                {loadingHolidays ? (
+                   <div className="flex flex-col items-center justify-center py-12 text-on-surface-variant">
+                      <span className="material-symbols-outlined animate-spin text-4xl text-primary mb-4">autorenew</span>
+                      <p className="font-bold">Loading institutional calendar...</p>
+                   </div>
+                ) : holidays.length === 0 ? (
+                   <div className="text-center py-12 text-on-surface-variant italic border-2 border-dashed border-outline-variant rounded-xl">
+                      No holidays have been published for this year yet.
+                   </div>
+                ) : (
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-surface-container-lowest sticky top-0 z-10 shadow-sm">
+                      <tr className="text-label-sm text-on-surface-variant uppercase tracking-wider border-b border-outline-variant">
+                        <th className="px-4 py-3 rounded-tl-lg">Date</th>
+                        <th className="px-4 py-3">Holiday Name</th>
+                        <th className="px-4 py-3 rounded-tr-lg">Type</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant">
+                      {holidays.map((h, idx) => {
+                        const date = h.HolidayDate || h.holiday_date;
+                        const name = h.Name || h.name;
+                        const isRestricted = h.IsRestricted ?? h.is_restricted;
+                        
+                        return (
+                          <tr key={h.ID || h.id || idx} className="hover:bg-surface-container-lowest transition-colors border-b border-outline-variant/50 last:border-0">
+                            <td className="px-4 py-4 font-bold text-on-surface whitespace-nowrap">
+                              {date ? format(new Date(date), 'MMM dd, yyyy') : 'N/A'}
+                            </td>
+                            <td className="px-4 py-4 text-on-surface font-medium">{name}</td>
+                            <td className="px-4 py-4">
+                              {isRestricted ? (
+                                <span className="text-orange-700 bg-orange-50 px-3 py-1 rounded-full text-xs font-bold border border-orange-200 uppercase tracking-wider">Restricted</span>
+                              ) : (
+                                <span className="text-green-700 bg-green-50 px-3 py-1 rounded-full text-xs font-bold border border-green-200 uppercase tracking-wider">National</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

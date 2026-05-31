@@ -1,234 +1,313 @@
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { format } from "date-fns";
-import { useLeaveEngine } from "../hooks/useLeaveEngine";
+import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@clerk/clerk-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { format, formatDistanceToNow } from "date-fns";
+import StatCard from "../components/common/StatCard";
+import Loader from "../components/common/Loader";
 
 const motionProps = {
-    whileTap: { scale: 0.95 },
-    transition: { type: "spring", stiffness: 400, damping: 25 },
-    style: { cursor: "pointer" },
-    whileHover: { scale: 1.02 },
-  };
+  whileTap: { scale: 0.95 },
+  transition: { type: "spring", stiffness: 400, damping: 25 },
+  style: { cursor: "pointer" },
+  whileHover: { scale: 1.02 },
+};
 
 export default function Approvals() {
-  const { 
-    fetchPendingLeaves, 
-    updateLeaveStatus, 
-    pendingLeaves, 
-    isLoading, 
-    approverStats, 
-    fetchApproverStats 
-  } = useLeaveEngine();
-  
-  const [processingId, setProcessingId] = useState(null);
+  const { getToken } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [requests, setRequests] = useState([]);
+  const [stats, setStats] = useState({});
+
+  // Action Modal State
+  const [actionModal, setActionModal] = useState({ isOpen: false, type: null, leaveId: null });
+  const [remarks, setRemarks] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [dialog, setDialog] = useState({ isOpen: false, type: 'info', title: '', message: '' });
+
+  const closeDialog = () => setDialog({ ...dialog, isOpen: false });
+  const closeActionModal = () => {
+    setActionModal({ isOpen: false, type: null, leaveId: null });
+    setRemarks("");
+  };
+
+  const fetchApprovalsData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = await getToken();
+      const headers = { Authorization: `Bearer ${token}` };
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+
+      // Adjust these URLs if your routes are named differently in main.go
+      const [reqRes, statsRes] = await Promise.all([
+        fetch(`${baseUrl}/api/v1/leaves/pending`, { headers }),
+        fetch(`${baseUrl}/api/v1/leaves/approver-stats`, { headers })
+      ]);
+
+      const reqData = await reqRes.json();
+      const statsData = await statsRes.json();
+
+      // Unwrap arrays and objects safely
+      setRequests(Array.isArray(reqData.data) ? reqData.data : []);
+      setStats(statsData.data || {});
+
+    } catch (error) {
+      console.error("Failed to fetch approvals data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken]);
 
   useEffect(() => {
-    fetchPendingLeaves();
-    fetchApproverStats(); // Fetch the real KPI numbers on load
-  }, [fetchPendingLeaves, fetchApproverStats]);
+    fetchApprovalsData();
+  }, [fetchApprovalsData]);
 
-  // Handle Approve/Reject action
-  const handleAction = async (id, status) => {
-    setProcessingId(id);
+  // Handle Approve / Reject Submission
+  const submitAction = async (e) => {
+    e.preventDefault();
+    setIsProcessing(true);
     try {
-      await updateLeaveStatus(id, status, `Auto-${status.toLowerCase()} by reviewer.`);
-      // Refresh stats after an action is taken to keep KPIs accurate
-      fetchApproverStats();
-    } catch (err) {
-      console.error(`Failed to ${status} leave:`, err);
+      const token = await getToken();
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+      
+      const response = await fetch(`${baseUrl}/api/v1/leaves/${actionModal.leaveId}/status`, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: actionModal.type, // 'APPROVED' or 'REJECTED'
+          remarks: remarks
+        })
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) throw new Error(data.error || "Failed to process request");
+
+      setDialog({ isOpen: true, type: 'success', title: 'Success', message: data.message });
+      closeActionModal();
+      fetchApprovalsData(); // Refresh the list
+    } catch (error) {
+      setDialog({ isOpen: true, type: 'error', title: 'Action Failed', message: error.message });
     } finally {
-      setProcessingId(null);
+      setIsProcessing(false);
     }
   };
 
-  // Safe unwrap for rendering
-  const safePendingLeaves = Array.isArray(pendingLeaves) ? pendingLeaves : [];
+  if (loading) return <Loader message="Fetching pending requests..." fullScreen={true} />;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-24">
       
       {/* Header */}
-      <section className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="font-headline-lg text-headline-lg text-primary">Approver's Inbox</h1>
-          <p className="text-on-surface-variant font-body-md mt-1">Review and manage faculty leave requests.</p>
+          <h1 className="font-headline-lg text-headline-lg text-on-surface">Action Inbox</h1>
+          <p className="font-body-md text-body-md text-on-surface-variant mt-1">
+            Review and process pending leave requests from your department.
+          </p>
         </div>
-        <div className="flex gap-3">
-          <motion.button {...motionProps} className={`px-4 py-2 border border-outline-variant bg-white text-on-surface rounded-lg font-bold flex items-center gap-2 ${motionProps.className}`}>
-            <span className="material-symbols-outlined text-sm">filter_list</span> Filter
-          </motion.button>
-          <motion.button {...motionProps} className={`px-4 py-2 bg-primary text-white rounded-lg font-bold flex items-center gap-2 shadow-sm ${motionProps.className}`}>
-            <span className="material-symbols-outlined text-sm">download</span> Export CSV
-          </motion.button>
-        </div>
-      </section>
+      </div>
 
-      {/* KPI Cards (Now using Live Backend Data) */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white border border-outline-variant p-5 rounded-xl shadow-sm">
-          <p className="text-label-md font-bold text-on-surface-variant uppercase tracking-wider mb-2">Pending Approval</p>
-          <div className="text-display-sm font-bold text-primary mb-3">
-            {approverStats?.pending_count || 0}
-          </div>
-          <div className="w-full bg-surface-variant h-1.5 rounded-full overflow-hidden">
-             <div className="bg-primary h-full transition-all duration-1000" style={{ width: `${Math.min((approverStats?.pending_count || 0) * 5, 100)}%` }}></div>
-          </div>
-        </div>
-        
-        <div className="bg-white border border-outline-variant p-5 rounded-xl shadow-sm">
-          <p className="text-label-md font-bold text-on-surface-variant uppercase tracking-wider mb-2">Approved Today</p>
-          <div className="text-display-sm font-bold text-green-600 mb-1">
-            {approverStats?.approved_today || 0}
-          </div>
-          <p className="text-label-sm text-green-700 font-medium">Live daily metric</p>
-        </div>
-        
-        <div className="bg-white border border-outline-variant p-5 rounded-xl shadow-sm">
-          <p className="text-label-md font-bold text-on-surface-variant uppercase tracking-wider mb-2">Avg. Response Time</p>
-          <div className="text-display-sm font-bold text-secondary mb-1">
-            {approverStats?.avg_response_hours ? approverStats.avg_response_hours.toFixed(1) : "0.0"}h
-          </div>
-          <p className="text-label-sm text-on-surface-variant">Top 10% efficiency</p>
-        </div>
-      </section>
+      {/* Stats Grid (API uses snake_case here) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <StatCard 
+          title="Pending Requests" 
+          value={(stats.pending_count || 0).toString()} 
+          subtitle="Awaiting your action" 
+          icon="inbox" 
+          theme="primary" 
+        />
+        <StatCard 
+          title="Approved Today" 
+          value={(stats.approved_today || 0).toString()} 
+          subtitle="Processed in last 24h" 
+          icon="task_alt" 
+          theme="secondary" 
+        />
+        <StatCard 
+          title="Avg. Turnaround" 
+          value={`${(stats.avg_response_hours || 0).toFixed(1)} hrs`} 
+          subtitle="Your response time" 
+          icon="timer" 
+          theme="tertiary" 
+        />
+      </div>
 
-      {/* Data Table */}
-      <section className="bg-white border border-outline-variant rounded-xl overflow-hidden shadow-sm flex flex-col">
-        
-        {/* Table Toolbar */}
-        <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest">
-          <div className="relative w-64">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
-            <input 
-              type="text" 
-              placeholder="Search by name or type..." 
-              className="w-full pl-9 pr-4 py-2 border border-outline-variant rounded-lg text-body-sm focus:outline-none focus:border-primary"
-            />
-          </div>
-          <div className="text-body-sm font-medium text-on-surface-variant flex items-center gap-2">
-            Sort by: <span className="text-primary font-bold cursor-pointer">Newest First <span className="material-symbols-outlined text-[14px] align-middle">expand_more</span></span>
-          </div>
+      {/* Pending Requests Table/List */}
+      <div className="bg-white border border-outline-variant rounded-2xl shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-outline-variant bg-surface-container-lowest">
+          <h2 className="font-title-lg text-title-lg text-on-surface">Requires Approval</h2>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="bg-surface-container-low border-b border-outline-variant">
-                <th className="px-5 py-3 font-label-md text-on-surface-variant uppercase tracking-wider">Employee Name</th>
-                <th className="px-5 py-3 font-label-md text-on-surface-variant uppercase tracking-wider">Leave Type</th>
-                <th className="px-5 py-3 font-label-md text-on-surface-variant uppercase tracking-wider">Dates</th>
-                <th className="px-5 py-3 font-label-md text-on-surface-variant uppercase tracking-wider">Reason</th>
-                <th className="px-5 py-3 font-label-md text-on-surface-variant uppercase tracking-wider">Status</th>
-                <th className="px-5 py-3 font-label-md text-on-surface-variant uppercase tracking-wider text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant">
-              {isLoading && safePendingLeaves.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-on-surface-variant animate-pulse">Loading inbox...</td>
+        {requests.length === 0 ? (
+          <div className="p-12 flex flex-col items-center justify-center text-on-surface-variant">
+            <span className="material-symbols-outlined text-6xl mb-4 opacity-20">done_all</span>
+            <p className="font-title-md font-bold">You're all caught up!</p>
+            <p className="text-body-sm">There are no pending requests in your queue.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-[900px]">
+              <thead className="bg-surface-container-low border-b border-outline-variant">
+                <tr className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+                  <th className="px-6 py-4">Applicant</th>
+                  <th className="px-6 py-4">Leave Type</th>
+                  <th className="px-6 py-4">Duration</th>
+                  <th className="px-6 py-4">Reason</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
-              ) : safePendingLeaves.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-on-surface-variant">
-                    <span className="material-symbols-outlined text-4xl block mb-2 opacity-50">task_alt</span>
-                    Inbox is completely clear. Great job!
-                  </td>
-                </tr>
-              ) : (
-                safePendingLeaves.map((leave) => (
-                  <tr key={leave.id} className={`hover:bg-surface-container-low/30 transition-colors ${processingId === leave.id ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold text-sm shrink-0">
-                           {leave.user?.first_name?.charAt(0) || "U"}
+              </thead>
+              <tbody className="divide-y divide-outline-variant">
+                {requests.map((leave) => {
+                  // Safely extract API variables handling exact casing
+                  const applicant = leave.User ? `${leave.User.FirstName} ${leave.User.LastName}` : "Unknown User";
+                  const email = leave.User?.Email || "";
+                  const typeName = leave.LeaveType?.name || "Leave Request";
+                  
+                  return (
+                    <tr key={leave.ID} className="hover:bg-surface-container-lowest transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-on-surface">{applicant}</div>
+                        <div className="text-body-sm text-on-surface-variant">{email}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-bold text-primary bg-primary/10 px-3 py-1 rounded-full text-xs">
+                          {typeName}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-on-surface">
+                          {leave.StartDate ? format(new Date(leave.StartDate), 'MMM dd') : ''} - {leave.EndDate ? format(new Date(leave.EndDate), 'MMM dd, yyyy') : ''}
                         </div>
-                        <div>
-                          <p className="font-body-md text-on-surface font-bold">{leave.user?.first_name} {leave.user?.last_name}</p>
-                          <p className="text-[11px] text-on-surface-variant truncate">Dept. ID: {leave.user?.department_id || "N/A"}</p>
+                        <div className="text-body-sm text-on-surface-variant font-bold">
+                          {leave.CalculatedDays} Days
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <p className="font-body-sm font-bold text-on-surface capitalize">{leave.leave_type || "Leave Request"}</p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <p className="font-body-sm text-on-surface">{format(new Date(leave.start_date), 'MMM dd')} - {format(new Date(leave.end_date), 'MMM dd')}</p>
-                      <p className="font-label-sm text-on-surface-variant mt-0.5">{leave.calculated_days} Days</p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <p className="font-body-sm text-on-surface-variant truncate max-w-[200px]" title={leave.reason}>{leave.reason}</p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700">
-                        <span className="material-symbols-outlined text-[14px]">pending</span> Pending
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center justify-center gap-3">
-                        <motion.button 
-                          {...motionProps} 
-                          onClick={() => handleAction(leave.id, "APPROVED")}
-                          className={`w-8 h-8 rounded-full border-2 border-green-500 text-green-600 hover:bg-green-50 flex items-center justify-center transition-colors ${motionProps.className}`}
-                          title="Approve"
-                        >
-                          <span className="material-symbols-outlined text-[18px] font-bold">check</span>
-                        </motion.button>
-                        <motion.button 
-                          {...motionProps} 
-                          onClick={() => handleAction(leave.id, "REJECTED")}
-                          className={`w-8 h-8 rounded-full border-2 border-red-500 text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors ${motionProps.className}`}
-                          title="Reject"
-                        >
-                          <span className="material-symbols-outlined text-[18px] font-bold">close</span>
-                        </motion.button>
-                        <button className="text-[10px] font-bold text-on-surface-variant hover:text-primary uppercase tracking-wider ml-2">
-                          Details
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* Bottom Widgets */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div className="bg-white border border-outline-variant p-6 rounded-xl shadow-sm">
-        <h3 className="font-title-lg text-on-surface mb-4">Quick Analytics</h3>
-        <div className="space-y-4">
-            <div className="flex justify-between items-center text-body-sm">
-              <span className="text-on-surface-variant">Sabbatical Volume</span>
-              <span className="font-bold text-on-surface">{approverStats?.sabbatical_volume || 0} Requests</span>
-            </div>
-            
-            <div className="flex justify-between items-center text-body-sm">
-              <span className="text-on-surface-variant">Staff Capacity</span>
-              <span className="font-bold text-primary">84%</span> {/* Keep as is or add new DB field */}
-            </div>
-            
-            <div className="flex justify-between items-center text-body-sm">
-              <span className="text-on-surface-variant">Pending Since: 48h</span>
-              <span className={`font-bold ${approverStats?.pending_since_48h > 0 ? 'text-error' : 'text-green-600'}`}>
-                {approverStats?.pending_since_48h || 0} Requests
-              </span>
-            </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-body-sm text-on-surface-variant truncate max-w-[200px]" title={leave.Reason}>
+                          {leave.Reason}
+                        </p>
+                        <p className="text-[10px] text-on-surface-variant/70 mt-1 uppercase tracking-wider font-bold">
+                          Applied {leave.AppliedAt ? formatDistanceToNow(new Date(leave.AppliedAt), { addSuffix: true }) : ''}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <motion.button 
+                            {...motionProps} 
+                            onClick={() => setActionModal({ isOpen: true, type: 'REJECTED', leaveId: leave.ID })}
+                            className="p-2 text-error hover:bg-error-container rounded-full flex items-center justify-center transition-colors"
+                            title="Reject"
+                          >
+                            <span className="material-symbols-outlined">close</span>
+                          </motion.button>
+                          <motion.button 
+                            {...motionProps} 
+                            onClick={() => setActionModal({ isOpen: true, type: 'APPROVED', leaveId: leave.ID })}
+                            className="p-2 text-green-600 hover:bg-green-100 rounded-full flex items-center justify-center transition-colors"
+                            title="Approve"
+                          >
+                            <span className="material-symbols-outlined">check</span>
+                          </motion.button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
+      </div>
 
-        <div className="bg-primary-container text-on-primary-container p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-col justify-end min-h-[200px]">
-            <div className="relative z-10">
-                <h3 className="font-title-md font-bold mb-1">Efficiency Spotlight</h3>
-                <p className="text-body-sm opacity-90">
-                Your approval response time has {approverStats.efficiency_change >= 0 ? "improved" : "slipped"} by 
-                {" "}{Math.abs(approverStats.efficiency_change).toFixed(1)}% this month.
-                </p>
-            </div>
-            <span className="material-symbols-outlined absolute -right-4 -top-4 text-9xl opacity-10 rotate-12">monitoring</span>
-        </div>
-      </section>
+      {/* --- ACTION MODAL (Approve / Reject) --- */}
+      <AnimatePresence>
+        {actionModal.isOpen && (
+          <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }} 
+              animate={{ scale: 1, opacity: 1, y: 0 }} 
+              exit={{ scale: 0.95, opacity: 0, y: 20 }} 
+              className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative flex flex-col"
+            >
+              <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${actionModal.type === 'APPROVED' ? 'bg-green-100 text-green-600' : 'bg-error-container text-error'}`}>
+                <span className="material-symbols-outlined text-3xl">
+                  {actionModal.type === 'APPROVED' ? 'fact_check' : 'free_cancellation'}
+                </span>
+              </div>
+              
+              <h2 className="text-title-lg font-bold mb-2 text-on-surface text-center">
+                {actionModal.type === 'APPROVED' ? 'Approve Leave Request' : 'Reject Leave Request'}
+              </h2>
+              <p className="text-body-sm text-on-surface-variant mb-6 text-center">
+                {actionModal.type === 'APPROVED' 
+                  ? 'This action will automatically deduct the balance from the applicant.' 
+                  : 'Please provide a reason for the rejection below.'}
+              </p>
+
+              <form onSubmit={submitAction} className="space-y-4">
+                <div>
+                  <label className="block text-label-md font-bold mb-1">Remarks / Comments</label>
+                  <textarea 
+                    rows="3" 
+                    required={actionModal.type === 'REJECTED'} // Required if rejecting
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                    placeholder="Enter your notes here..."
+                    className="w-full appearance-none bg-surface-container-lowest border border-outline-variant rounded-xl p-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary text-body-sm text-on-surface resize-none"
+                  ></textarea>
+                </div>
+                
+                <div className="pt-4 flex gap-3">
+                  <button 
+                    type="button" 
+                    disabled={isProcessing}
+                    onClick={closeActionModal} 
+                    className="flex-1 px-4 py-3 border border-outline-variant rounded-full font-bold text-on-surface-variant hover:bg-surface-container transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={isProcessing}
+                    className={`flex-1 px-4 py-3 text-white rounded-full font-bold shadow-md transition-colors ${
+                      actionModal.type === 'APPROVED' ? 'bg-green-600 hover:bg-green-700' : 'bg-error hover:bg-error/90'
+                    } ${isProcessing ? 'opacity-50' : ''}`}
+                  >
+                    {isProcessing ? "Processing..." : `Confirm ${actionModal.type === 'APPROVED' ? 'Approval' : 'Rejection'}`}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- SUCCESS/ERROR DIALOG --- */}
+      <AnimatePresence>
+        {dialog.isOpen && (
+          <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl text-center">
+              <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${dialog.type === 'error' ? 'bg-error-container text-error' : 'bg-green-100 text-green-600'}`}>
+                <span className="material-symbols-outlined text-3xl">{dialog.type === 'error' ? 'error' : 'check_circle'}</span>
+              </div>
+              <h2 className="text-title-lg font-bold mb-2 text-on-surface">{dialog.title}</h2>
+              <p className="text-body-sm text-on-surface-variant mb-8">{dialog.message}</p>
+              
+              <div className="flex justify-center">
+                <button 
+                  onClick={closeDialog} 
+                  className={`px-8 py-2.5 rounded-full font-bold text-white shadow-md transition-colors ${dialog.type === 'error' ? 'bg-error hover:bg-error/90' : 'bg-primary hover:bg-primary/90'}`}
+                >
+                  Okay
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
