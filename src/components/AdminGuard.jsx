@@ -39,9 +39,11 @@ export default function AdminGuard({ children }) {
             // The Go library wraps the configuration inside a 'publicKey' field
             const authenticationOptions = options.publicKey ? options.publicKey : options;
 
-            // 2. Trigger the Phone/Browser Biometric Prompt
-            const asseResp = await startAuthentication(authenticationOptions);
+            // 2. Trigger the Phone/Browser Biometric Prompt (UPDATED FOR v10)
+            const asseResp = await startAuthentication({ optionsJSON: authenticationOptions });
+            
             const freshToken = await getToken();
+            
             // 3. Send the cryptographic signature back to Go
             const finishRes = await fetch(`${API_BASE}/api/v1/auth/webauthn/login/finish`, {
                 method: 'POST',
@@ -87,9 +89,11 @@ export default function AdminGuard({ children }) {
             // The Go library wraps the configuration inside a 'publicKey' field
             const registrationOptions = options.publicKey ? options.publicKey : options;
 
-            // 2. Trigger the Phone/Browser creation prompt
-            const attResp = await startRegistration(registrationOptions);
+            // 2. Trigger the Phone/Browser creation prompt (UPDATED FOR v10)
+            const attResp = await startRegistration({ optionsJSON: registrationOptions });
+            
             const freshToken = await getToken();
+            
             // 3. Send the new Public Key to Go to save in DB
             const finishRes = await fetch(`${API_BASE}/api/v1/auth/webauthn/register/finish`, {
                 method: 'POST',
