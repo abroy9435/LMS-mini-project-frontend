@@ -74,10 +74,18 @@ const isApprover = userLevel >= 50 && userLevel < 100; // Strictly HOD, COE, Reg
 
         {/* ADMIN SETTINGS: Visible ONLY to System Admin and VC */}
         {(isAdmin || isVC) && (
-          <MotionLink {...motionProps} to="/admin" className={getNavClasses("/admin")}>
-            <span className="material-symbols-outlined">admin_panel_settings</span>
-            <span className="font-label-md">Admin Settings</span>
-          </MotionLink>
+          <MotionLink 
+          {...motionProps} 
+          to="/admin" 
+          className={`${getNavClasses("/admin")} ${
+            location.pathname === '/admin' 
+              ? "bg-gradient-to-br from-red-900 to-red-600 text-white shadow-lg" 
+              : ""
+          }`}
+        >
+          <span className="material-symbols-outlined">admin_panel_settings</span>
+          <span className="font-label-md">Admin Settings</span>
+        </MotionLink>
         )}
 
         <MotionLink {...motionProps} to="/profile" className={getNavClasses("/profile")}>

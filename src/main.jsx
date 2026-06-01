@@ -15,7 +15,13 @@ if (!PUBLISHABLE_KEY) {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+      {/* ADD THE REDIRECT PROPS HERE TO FIX THE SIGNUP BUG */}
+      <ClerkProvider 
+        publishableKey={PUBLISHABLE_KEY}
+        signInFallbackRedirectUrl="/"
+        signUpFallbackRedirectUrl="/"
+        afterSignOutUrl="/login"
+      >
         <AuthProvider>
           <App />
         </AuthProvider>

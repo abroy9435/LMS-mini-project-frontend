@@ -95,7 +95,7 @@ export default function Approvals() {
     }
   };
 
-  if (loading) return <Loader message="Fetching pending requests..." fullScreen={true} />;
+  if (loading) return <Loader message="Fetching pending requests..."  />;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-24">

@@ -1,5 +1,7 @@
 import { useUser, useClerk } from "@clerk/clerk-react";
 import { motion } from "framer-motion";
+import { format } from "date-fns";
+import { useAppAuth } from "../context/AuthContext"; // Import your auth context
 
 const motionProps = {
   whileTap: { scale: 0.95 },
@@ -11,9 +13,16 @@ const motionProps = {
 export default function Profile() {
   const { user } = useUser();
   const { openUserProfile } = useClerk();
+  
+  // Extract the real database user details
+  const { dbUser } = useAppAuth();
+
+  // Safely extract formatting for date
+  const joinedDate = dbUser?.CreatedAt || dbUser?.created_at;
+  const formattedJoinedDate = joinedDate ? format(new Date(joinedDate), 'MMMM dd, yyyy') : "Pending...";
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-24">
       
       {/* Page Header */}
       <section className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -86,65 +95,71 @@ export default function Profile() {
               <div className="space-y-1">
                 <label className="font-label-md text-label-md text-on-surface-variant">EMPLOYEE ID</label>
                 <div className="h-11 px-4 border border-outline-variant rounded-xl bg-surface-container-lowest flex items-center text-body-md text-on-surface opacity-70 cursor-not-allowed">
-                  TU-88291
+                  {dbUser?.EmployeeID || dbUser?.employee_id || "Pending Setup"}
                 </div>
                 <p className="text-[10px] text-outline mt-1">Managed by System Administrator</p>
               </div>
 
               <div className="space-y-1">
                 <label className="font-label-md text-label-md text-on-surface-variant">DEPARTMENT</label>
-                <div className="h-11 px-4 border border-outline-variant rounded-xl bg-surface-container-lowest flex items-center text-body-md text-on-surface opacity-70 cursor-not-allowed">
-                  Computer Science & Engineering
+                <div className="h-11 px-4 border border-outline-variant rounded-xl bg-surface-container-lowest flex items-center text-body-md text-on-surface opacity-70 cursor-not-allowed truncate">
+                  {dbUser?.Department?.Name || dbUser?.department?.name || "Not Assigned"}
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label className="font-label-md text-label-md text-on-surface-variant">SYSTEM ROLE</label>
-                <div className="h-11 px-4 border border-outline-variant rounded-xl bg-surface-container-lowest flex items-center text-body-md text-on-surface opacity-70 cursor-not-allowed">
-                  Faculty (Standard User)
+                <div className="h-11 px-4 border border-outline-variant rounded-xl bg-surface-container-lowest flex items-center text-body-md text-on-surface opacity-70 cursor-not-allowed capitalize">
+                  {dbUser?.Role?.Name || dbUser?.role?.name || "Standard User"}
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label className="font-label-md text-label-md text-on-surface-variant">JOINING DATE</label>
                 <div className="h-11 px-4 border border-outline-variant rounded-xl bg-surface-container-lowest flex items-center text-body-md text-on-surface opacity-70 cursor-not-allowed">
-                  August 12, 2023
+                  {formattedJoinedDate}
                 </div>
               </div>
 
             </div>
           </div>
 
-          {/* Preferences Settings */}
-          <div className="bg-white border border-outline-variant rounded-xl p-6 shadow-sm">
-            <h3 className="font-title-lg text-title-lg text-on-surface mb-6 flex items-center gap-2">
-              <span className="material-symbols-outlined text-secondary">tune</span>
-              Notification Preferences
-            </h3>
+          {/* Preferences Settings (Coming Soon State) */}
+          <div className="bg-white border border-outline-variant rounded-xl p-6 shadow-sm relative overflow-hidden">
+            
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-title-lg text-title-lg text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-secondary">tune</span>
+                Notification Preferences
+              </h3>
+              <span className="bg-tertiary-container text-gray-400 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider italic animate-pulse">
+                Coming Soon...
+              </span>
+            </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 opacity-50 pointer-events-none grayscale select-none">
               
               {/* Setting Toggle 1 */}
-              <div className="flex items-center justify-between p-4 border border-outline-variant rounded-lg hover:bg-surface-container-low transition-colors">
+              <div className="flex items-center justify-between p-4 border border-outline-variant rounded-lg">
                 <div>
                   <h4 className="font-body-md font-bold text-on-surface">Email Notifications</h4>
                   <p className="text-body-sm text-on-surface-variant">Receive updates when your leave status changes.</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" defaultChecked />
-                  <div className="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                <label className="relative inline-flex items-center">
+                  <input type="checkbox" className="sr-only peer" disabled defaultChecked />
+                  <div className="w-11 h-6 bg-surface-variant rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                 </label>
               </div>
 
               {/* Setting Toggle 2 */}
-              <div className="flex items-center justify-between p-4 border border-outline-variant rounded-lg hover:bg-surface-container-low transition-colors">
+              <div className="flex items-center justify-between p-4 border border-outline-variant rounded-lg">
                 <div>
                   <h4 className="font-body-md font-bold text-on-surface">HOD Auto-CC</h4>
                   <p className="text-body-sm text-on-surface-variant">Automatically notify your department head when applying.</p>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" defaultChecked />
-                  <div className="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                <label className="relative inline-flex items-center">
+                  <input type="checkbox" className="sr-only peer" disabled defaultChecked />
+                  <div className="w-11 h-6 bg-surface-variant rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                 </label>
               </div>
 

@@ -15,7 +15,12 @@ export default function App() {
       {/* 1. CRITICAL: Callback is unguarded so it isn't destroyed mid-flight */}
       <Route 
         path="/sso-callback" 
-        element={<AuthenticateWithRedirectCallback />} 
+        element={
+          <AuthenticateWithRedirectCallback 
+            signInFallbackRedirectUrl="/" 
+            signUpFallbackRedirectUrl="/" 
+          />
+        } 
       />
 
       {/* 2. Catch-all for the rest of the application */}
@@ -33,13 +38,13 @@ export default function App() {
                   
                   {/* STANDARD EMPLOYEE ROUTES (Intentionally blocking the VC) */}
                   <Route path="/" element={
-                    <RoleRoute allowedRoles={["EMPLOYEE", "APPROVER", "ADMIN"]}>
+                    <RoleRoute allowedRoles={["EMPLOYEE", "APPROVER", "ADMIN", "System Administrator"]}>
                       <Dashboard />
                     </RoleRoute>
                   } />
                   
                   <Route path="/leaves" element={
-                    <RoleRoute allowedRoles={["EMPLOYEE", "APPROVER", "ADMIN"]}>
+                    <RoleRoute allowedRoles={["EMPLOYEE", "APPROVER", "ADMIN", "System Administrator"]}>
                       <MyLeaves />
                     </RoleRoute>
                   } />
@@ -49,13 +54,13 @@ export default function App() {
 
                   {/* MANAGEMENT ROUTES (Including the VC) */}
                   <Route path="/approvals" element={
-                    <RoleRoute allowedRoles={["APPROVER", "ADMIN", "VC"]}>
+                    <RoleRoute allowedRoles={["APPROVER", "ADMIN", "System Administrator", "VC"]}>
                       <Approvals />
                     </RoleRoute>
                   } />
                   
                   <Route path="/admin" element={
-                    <RoleRoute allowedRoles={["ADMIN", "VC"]}>
+                    <RoleRoute allowedRoles={["ADMIN", "System Administrator", "VC"]}>
                       <AdminDashboard />
                     </RoleRoute>
                   } />

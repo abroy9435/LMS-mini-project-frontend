@@ -5,6 +5,9 @@ export const API_URLS = {
   user: {
     me: `${API_BASE_URL}/api/v1/me`,
     profile: `${API_BASE_URL}/api/v1/profile`,
+    DEPARTMENTS: "/api/v1/departments",
+    UPDATE_PROFILE: "/api/v1/users/me",
+    HOLIDAYS: "/api/v1/holidays",
   },
 
   // Leave Management Routes

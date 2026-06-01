@@ -1,4 +1,4 @@
-import { useSignIn, useAuth } from "@clerk/clerk-react";
+import { useSignIn } from "@clerk/clerk-react";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -11,15 +11,18 @@ const motionProps = {
 };
 
 export default function Login() {
+  // We use useSignIn for both Google SSO and Email/Password
   const { isLoaded, signIn, setActive } = useSignIn();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  // 1. Headless Clerk authentication for Google
+  // 1. Google OAuth Logic (Headless)
   const handleGoogleSignIn = (e) => {
     e.preventDefault();
     if (!isLoaded) return;
     
+    // Redirects to Google, then returns to our App.jsx callback route
     signIn.authenticateWithRedirect({
       strategy: "oauth_google",
       redirectUrl: "/sso-callback",
@@ -27,32 +30,38 @@ export default function Login() {
     });
   };
 
-  // 2. Wired Clerk Email/Password Authentication
+  // 2. Email & Password Logic (Headless)
   const handleEmailSignIn = async (e) => {
     e.preventDefault();
     if (!isLoaded) return;
     
     setIsLoading(true);
+    setError(""); // Clear previous errors
+    
     const formData = new FormData(e.target);
     const email = formData.get("email");
     const password = formData.get("password");
    
     try {
-      // Use Clerk directly instead of manually hitting the Go backend
+      // Attempt to authenticate with Clerk
       const result = await signIn.create({
         identifier: email,
         password,
       });
 
       if (result.status === "complete") {
+        // Success! Set the session as active and go to dashboard
         await setActive({ session: result.createdSessionId });
         navigate("/"); 
       } else {
+        // If MFA/2FA is enabled, it would pause here
         console.log("Investigate additional auth steps:", result);
+        setError("Additional authentication required.");
       }
-    } catch (error) {
-      console.error("Login error:", error.errors ? error.errors[0].message : error.message);
-      alert(error.errors ? error.errors[0].message : "Invalid credentials.");
+    } catch (err) {
+      console.error("Login error:", err);
+      // Display clean error messages from Clerk
+      setError(err.errors ? err.errors[0].message : "Invalid credentials.");
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +111,7 @@ export default function Login() {
 
         <div className="relative z-10 mt-auto pt-16">
           <p className="text-[12px] text-white/40">
-            © 2024 Tezpur University. All rights reserved.
+            © {new Date().getFullYear()} Tezpur University. All rights reserved.
           </p>
         </div>
       </section>
@@ -129,11 +138,33 @@ export default function Login() {
         </nav>
 
         {/* Login Card Container */}
-        <div className="w-full max-w-[420px] bg-white rounded-[16px] p-8 md:p-10 flex flex-col border border-outline-variant shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <header className="mb-8">
-            <h2 className="text-[32px] font-bold text-on-surface mb-2 tracking-tight">Welcome back</h2>
-            <p className="text-[14px] text-on-surface-variant">Please enter your institutional credentials.</p>
-          </header>
+        <div className="w-full max-w-[420px] bg-white rounded-[16px] p-8 md:p-10 mt-7 flex flex-col border border-outline-variant shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          
+        <header className="mb-8 text-center flex flex-col items-center">
+          {/* Partnership Coins Stack */}
+          <div className="flex items-center justify-center mb-6 p-2">
+            
+            {/* Coin 1 (Base) */}
+            <div className="w-24 h-24 rounded-full border-4 border-white shadow-[0_8px_16px_rgba(0,0,0,0.15)] bg-gradient-to-br from-white to-stone-200 z-10 flex items-center justify-center overflow-hidden ring-4 ring-white">
+              <img src="/logo.svg" alt="App Logo" className="w-15 h-15 object-contain" />
+            </div>
+            
+            {/* Coin 2 (Top) */}
+            <div className="w-24 h-24 rounded-full border-4 border-white shadow-[0_12px_24px_rgba(0,0,0,0.2)] bg-gradient-to-br from-white to-stone-200 z-20 -ml-8 flex items-center justify-center overflow-hidden ring-4 ring-white">
+              <img src="/tu_logo.png" alt="Tezpur University Logo" className="w-23 h-23 object-contain p-2" />
+            </div>
+          </div>
+
+          <h2 className="text-[32px] font-bold text-on-surface mb-2 tracking-tight">Welcome back</h2>
+          <p className="text-[14px] text-on-surface-variant">Please enter your institutional credentials.</p>
+        </header>
+
+          {/* Error Message Display */}
+          {error && (
+            <div className="mb-6 p-3 bg-error-container text-error rounded-xl text-sm font-bold text-center">
+              {error}
+            </div>
+          )}
 
           {/* Social Sign In (Headless Clerk) */}
           <motion.button 
@@ -196,7 +227,7 @@ export default function Login() {
               disabled={isLoading}
               className="w-full bg-primary text-white py-3 px-6 rounded-xl text-[16px] font-bold hover:opacity-90 transition-all duration-200 shadow-md cursor-pointer disabled:opacity-70"
             >
-              {isLoading ? "Signing In..." : "Sign In"}
+              {isLoading ? "Authenticating..." : "Sign In"}
             </motion.button>
           </form>
 

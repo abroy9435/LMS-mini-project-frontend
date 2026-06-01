@@ -5,6 +5,7 @@ import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterv
 import StatCard from "../components/common/StatCard";
 import LeaveApplicationModal from "../components/forms/LeaveApplicationModal";
 import { useLeaveEngine } from "../hooks/useLeaveEngine"; 
+import { API_URLS } from "../utils/constants";
 
 const motionProps = {
   whileTap: { scale: 0.95 },
@@ -43,17 +44,14 @@ export default function Dashboard() {
           fetchMyLeaves()
         ]);
 
-        // CRITICAL FIX: Unwrap the "data" array from the JSON response
         const balanceData = Array.isArray(balanceRes) ? balanceRes : (balanceRes?.data || []);
         const leavesData = Array.isArray(leavesRes) ? leavesRes : (leavesRes?.data || []);
 
-        // Process Balances (API uses snake_case: remaining_days)
         if (balanceData.length > 0) {
           const totalRemaining = balanceData.reduce((acc, curr) => acc + (curr.remaining_days || 0), 0);
           setBalances(totalRemaining);
         }
         
-        // Process Leaves (API uses PascalCase: Status, StartDate, AppliedAt)
         if (leavesData.length > 0) {
           const sorted = [...leavesData].sort((a, b) => new Date(b.AppliedAt) - new Date(a.AppliedAt));
           setRecentLeaves(sorted.slice(0, 3)); 
@@ -79,7 +77,10 @@ export default function Dashboard() {
       setLoadingHolidays(true);
       try {
         const token = await getToken();
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/admin/holidays`, {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || "";
+        
+        // 2. CRITICAL FIX: Use API_URLS.user.HOLIDAYS based on your constants.js structure
+        const response = await fetch(`${baseUrl}${API_URLS.user.HOLIDAYS}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await response.json();
@@ -254,19 +255,25 @@ export default function Dashboard() {
           </div>
 
           {/* Upcoming Holidays Card */}
-          <div className="bg-primary-container text-on-primary-container p-6 rounded-xl shadow-sm relative overflow-hidden group">
+          {/* Upcoming Holidays Card */}
+          <div className="bg-surface-container-high border border-outline-variant p-6 rounded-xl shadow-sm relative overflow-hidden group">
             <div className="relative z-10">
-              <h3 className="font-title-lg text-title-lg mb-2 text-on-primary-container">Institutional Calendar</h3>
-              <p className="text-body-sm opacity-80 mb-6 text-on-primary-container">Review all scheduled national and restricted holidays for the current academic year.</p>
+              <h3 className="font-title-lg text-title-lg mb-2 text-on-surface font-bold">
+                Institutional Calendar
+              </h3>
+              <p className="text-body-sm text-on-surface-variant mb-6">
+                Review all scheduled national and restricted holidays for the current academic year.
+              </p>
               <motion.button 
                 {...motionProps} 
                 onClick={handleViewHolidays}
-                className="bg-white/20 text-on-primary-container hover:bg-white/30 px-4 py-2 rounded-lg font-bold text-label-md transition-colors cursor-pointer flex items-center justify-center gap-2 w-full"
+                className="bg-primary text-white hover:bg-primary/90 px-4 py-2 rounded-lg font-bold text-label-md transition-colors cursor-pointer flex items-center justify-center gap-2 w-full shadow-sm"
               >
                   <span className="material-symbols-outlined text-sm">calendar_view_month</span> View All Holidays
               </motion.button>
             </div>
-            <span className="material-symbols-outlined absolute -bottom-4 -right-4 text-9xl opacity-10 group-hover:rotate-12 transition-transform">park</span>
+            {/* Using a neutral gray icon to keep the card clean */}
+            <span className="material-symbols-outlined absolute -bottom-4 -right-4 text-9xl text-on-surface opacity-5 group-hover:rotate-12 transition-transform">park</span>
           </div>
           
         </div>
@@ -309,7 +316,7 @@ export default function Dashboard() {
                    </div>
                 ) : (
                   <table className="w-full text-left border-collapse">
-                    <thead className="bg-surface-container-lowest sticky top-0 z-10 shadow-sm">
+                    <thead className="bg-gray-100 sticky top-0 z-10 shadow-sm">
                       <tr className="text-label-sm text-on-surface-variant uppercase tracking-wider border-b border-outline-variant">
                         <th className="px-4 py-3 rounded-tl-lg">Date</th>
                         <th className="px-4 py-3">Holiday Name</th>
