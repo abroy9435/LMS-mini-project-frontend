@@ -8,6 +8,7 @@ import MyLeaves from "./pages/MyLeaves";
 import Profile from "./pages/Profile";
 import Approvals from "./pages/Approvals";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminGuard from './components/AdminGuard';
 
 export default function App() {
   return (
@@ -61,7 +62,9 @@ export default function App() {
                   
                   <Route path="/admin" element={
                     <RoleRoute allowedRoles={["ADMIN", "System Administrator", "VC"]}>
-                      <AdminDashboard />
+                      <AdminGuard>
+                          <AdminDashboard />
+                      </AdminGuard>
                     </RoleRoute>
                   } />
 
